@@ -6,6 +6,7 @@ import              Data.Maybe (fromJust)
 import              Data.Text
 import              GHC.Generics
 import              Data.Aeson                  as Aes
+import              Data.Aeson.Types
 import              Network.HTTP.Simple
 import qualified    Data.ByteString.Char8       as C
 import qualified    Data.ByteString.Lazy.Char8  as L
@@ -23,18 +24,18 @@ instance ToJSON Body where
 
 data CreateResponse = CreateResponse {
     event :: String,
-    id :: String,
-    slave_limit :: String}
-    deriving (Show, Generic)
+    pengine_id :: String,
+    slave_limit :: Integer}
+    deriving (Show)
 
 instance FromJSON CreateResponse where
     parseJSON = withObject "createresponse" $ \o -> do
         event <- o .: "event"
-        id <- o .: "age"
+        pengine_id <- o .: "id"
         slave_limit <- o .: "slave_limit"
         return CreateResponse{..}
-instance ToJSON CreateResponse
 
+lib :: IO String
 lib = do
         request' <- parseRequest "POST http://localhost:4242"
 
@@ -48,15 +49,15 @@ lib = do
                 $ setRequestHeader "Accept" ["application/json"]
                 $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
                 $ request'
+        
         response <- httpLBS request
         Prelude.putStrLn $ "The status code was: " ++ show (getResponseStatusCode response)
         print $ getResponseHeader "Content-Type" response
         L.putStrLn $ getResponseBody response
+        let responsebody = getResponseBody response
+        return $ pengine_id $ fromJust $ decode responsebody :: IO String
+    where   body = object ["format" .= String "json"]
 
-        {-return $ fmap Aes.decode $ T.encodeUtf8 $ getResponseBody response-}
-        return $ getResponseBody response
-
-    where body = object ["format" .= String "json"]
 
 data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString,
                                             request :: Request} deriving (Show)
