@@ -1,6 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+
 module Lib (lib, PengineConnection, CreateResponse) where
 import              Data.Maybe (fromJust)
 import              Data.Text
@@ -15,6 +14,7 @@ import              Control.Monad
 import qualified    Data.Text.Lazy.IO           as T
 import qualified    Data.Text.Lazy.Encoding     as T
 import              Data.Text.Internal.Lazy     as LazyText
+import              Data.ByteString.Lazy.Internal   as LazyByte
 
 data Body = Body String String
 instance ToJSON Body where
@@ -57,6 +57,28 @@ lib = do
         let responsebody = getResponseBody response
         return $ pengine_id $ fromJust $ decode responsebody :: IO String
     where   body = object ["format" .= String "json"]
+
+
+pengineAsk :: IO String -> IO (Response ByteString)
+pengineAsk pengine_id = do
+    request' <- parseRequest "POST http://localhost:4242"
+    requestPath <- "/pengine/send?format=json&id=" ++ pengine_id
+    let request 
+            = setRequestPath (C.pack ("/pengine/send?format=json&id=" ++ pengine_id))
+            {-$ setRequestQueryString []-}
+            $ setRequestSecure False
+            $ setRequestHeader "Content-type" ["application/x-prolog"]
+            $ setRequestHeader "User-Agent" ["HaskellPengine"]
+            $ setRequestHeader "Accept" ["application/json"]
+            $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
+            $ setRequestBodyLBS (L.pack ("ask(" ++ "member(X, [1,2,3])" ++ ",[])."))
+            $ request'
+
+    response <- httpLBS request
+    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
+    print $ getResponseHeader "Content-Type" response
+    L.putStrLn $ getResponseBody response
+    return response
 
 
 data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString,
