@@ -44,10 +44,10 @@ lib = do
                 $ setRequestQueryString []
                 $ setRequestBodyJSON body
                 $ setRequestSecure False
-                $ setRequestHeader "Content-type" ["application/json"]
+                $ setRequestHeader "Content-type" ["application/x-prolog; charset=UTF-8"]
                 $ setRequestHeader "User-Agent" ["HaskellPengine"]
-                $ setRequestHeader "Accept" ["application/json"]
-                $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
+                {-$ setRequestHeader "Accept" ["application/json"]-}
+                {-$ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]-}
                 $ request'
         
         response <- httpLBS request
@@ -59,12 +59,14 @@ lib = do
     where   body = object ["format" .= String "json"]
 
 
-pengineAsk :: IO String -> IO (Response ByteString)
+pengineAsk :: String -> IO (Response ByteString)
 pengineAsk pengine_id = do
     request' <- parseRequest "POST http://localhost:4242"
-    requestPath <- "/pengine/send?format=json&id=" ++ pengine_id
+    {-_id <- pengine_id-}
+    {-let requestPath = "/pengine/send?format=json&id=" ++ _id-}
+    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
     let request 
-            = setRequestPath (C.pack ("/pengine/send?format=json&id=" ++ pengine_id))
+            = setRequestPath (C.pack requestPath)
             {-$ setRequestQueryString []-}
             $ setRequestSecure False
             $ setRequestHeader "Content-type" ["application/x-prolog"]
@@ -80,6 +82,32 @@ pengineAsk pengine_id = do
     L.putStrLn $ getResponseBody response
     return response
 
+pengineNext :: String -> IO (Response ByteString)
+pengineNext pengine_id = do
+    request' <- parseRequest "POST http://localhost:4242"
+    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
+    let request 
+            = setRequestPath (C.pack requestPath)
+            {-$ setRequestQueryString []-}
+            $ setRequestSecure False
+            $ setRequestHeader "Content-type" ["application/x-prolog"]
+            $ setRequestHeader "User-Agent" ["HaskellPengine"]
+            $ setRequestHeader "Accept" ["application/json"]
+            $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
+            $ setRequestBodyLBS (L.pack ("next."))
+            $ request'
+
+    response <- httpLBS request
+    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
+    print $ getResponseHeader "Content-Type" response
+    L.putStrLn $ getResponseBody response
+    return response
+
+test = do
+    pid <- lib
+    pengineAsk pid 
+    pengineNext pid
+    pengineNext pid
 
 data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString,
                                             request :: Request} deriving (Show)
