@@ -24,6 +24,7 @@ instance ToJSON Body where
 
 data CreateResponse = CreateResponse {
     event :: String,
+    _data :: Maybe String,
     pengine_id :: String,
     slave_limit :: Integer}
     deriving (Show)
@@ -31,6 +32,7 @@ data CreateResponse = CreateResponse {
 instance FromJSON CreateResponse where
     parseJSON = withObject "createresponse" $ \o -> do
         event <- o .: "event"
+        _data <- o .:? "data"
         pengine_id <- o .: "id"
         slave_limit <- o .: "slave_limit"
         return CreateResponse{..}
@@ -73,7 +75,7 @@ pengineAsk pengine_id = do
             $ setRequestHeader "User-Agent" ["HaskellPengine"]
             $ setRequestHeader "Accept" ["application/json"]
             $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
-            $ setRequestBodyLBS (L.pack ("ask(" ++ "member(X, [1,2,3])" ++ ",[])."))
+            $ setRequestBodyLBS (L.pack ("ask(" ++ "append(Xs, Ys, [a,b,c])" ++ ",[])."))
             $ request'
 
     response <- httpLBS request
@@ -103,16 +105,39 @@ pengineNext pengine_id = do
     L.putStrLn $ getResponseBody response
     return response
 
+pengineStop :: String -> IO (Response ByteString)
+pengineStop pengine_id = do
+    request' <- parseRequest "POST http://localhost:4242"
+    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
+    let request 
+            = setRequestPath (C.pack requestPath)
+            {-$ setRequestQueryString []-}
+            $ setRequestSecure False
+            $ setRequestHeader "Content-type" ["application/x-prolog"]
+            $ setRequestHeader "User-Agent" ["HaskellPengine"]
+            $ setRequestHeader "Accept" ["application/json"]
+            $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
+            $ setRequestBodyLBS (L.pack ("stop."))
+            $ request'
+
+    response <- httpLBS request
+    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
+    print $ getResponseHeader "Content-Type" response
+    L.putStrLn $ getResponseBody response
+    return response
+
 test = do
     pid <- lib
     pengineAsk pid 
     pengineNext pid
     pengineNext pid
+    pengineNext pid
+    pengineNext pid
+    pengineStop pid
 
 data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString,
                                             request :: Request} deriving (Show)
 
-data PengineAction = Create | Query String | Destroy
 
 buildURL :: String -> PengineAction -> String
 buildURL server Create                          = fixServer server ++ "create/"
@@ -122,4 +147,4 @@ buildURL server Destroy                         = fixServer server ++ "destroy/"
 fixServer :: String -> String
 fixServer server    | server == ""                      = ""
                     | Prelude.tail server == "/"        = server
-                    | otherwise                 = server ++ "/"
+                    | otherwise                         = server ++ "/"
