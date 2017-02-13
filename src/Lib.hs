@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
-module Lib (lib, PengineConnection, CreateResponse) where
+module Lib (pengineConnect, PengineConnection, CreateResponse, test) where
 import              Data.Maybe (fromJust)
 import              Data.Text
 import              GHC.Generics
@@ -15,6 +15,7 @@ import qualified    Data.Text.Lazy.IO           as T
 import qualified    Data.Text.Lazy.Encoding     as T
 import              Data.Text.Internal.Lazy     as LazyText
 import              Data.ByteString.Lazy.Internal   as LazyByte
+import              Types
 
 data Body = Body String String
 instance ToJSON Body where
@@ -27,7 +28,7 @@ data CreateResponse = CreateResponse {
     _data :: Maybe String,
     pengine_id :: String,
     slave_limit :: Integer}
-    deriving (Show)
+    deriving Show
 
 instance FromJSON CreateResponse where
     parseJSON = withObject "createresponse" $ \o -> do
@@ -37,9 +38,9 @@ instance FromJSON CreateResponse where
         slave_limit <- o .: "slave_limit"
         return CreateResponse{..}
 
-lib :: IO String
-lib = do
-        request' <- parseRequest "POST http://localhost:4242"
+pengineConnect :: String -> IO ServerConfiguration
+pengineConnect url = do
+        request' <- parseRequest $ "POST " ++ url
 
         let request
                 = setRequestPath "/pengine/create"
@@ -48,47 +49,36 @@ lib = do
                 $ setRequestSecure False
                 $ setRequestHeader "Content-type" ["application/x-prolog; charset=UTF-8"]
                 $ setRequestHeader "User-Agent" ["HaskellPengine"]
-                {-$ setRequestHeader "Accept" ["application/json"]-}
-                {-$ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]-}
                 $ request'
-        
+
         response <- httpLBS request
-        Prelude.putStrLn $ "The status code was: " ++ show (getResponseStatusCode response)
-        print $ getResponseHeader "Content-Type" response
-        L.putStrLn $ getResponseBody response
         let responsebody = getResponseBody response
-        return $ pengine_id $ fromJust $ decode responsebody :: IO String
+        let jsonBody = decode responsebody :: Maybe CreateResponse
+        let pid = pengine_id $ fromJust $ jsonBody :: String
+        return ServerConfiguration {serverBase = url, pengineId = Just pid}
     where   body = object ["format" .= String "json"]
 
-
-pengineAsk :: String -> IO (Response ByteString)
-pengineAsk pengine_id = do
-    request' <- parseRequest "POST http://localhost:4242"
-    {-_id <- pengine_id-}
-    {-let requestPath = "/pengine/send?format=json&id=" ++ _id-}
-    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
-    let request 
+pengineAsk serverConf query = do
+    request' <- parseRequest $ "POST " ++ (serverBase serverConf)
+    let requestPath = "/pengine/send?format=json&id=" ++ (fromJust $ pengineId serverConf)
+    let request
             = setRequestPath (C.pack requestPath)
-            {-$ setRequestQueryString []-}
             $ setRequestSecure False
             $ setRequestHeader "Content-type" ["application/x-prolog"]
             $ setRequestHeader "User-Agent" ["HaskellPengine"]
             $ setRequestHeader "Accept" ["application/json"]
             $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
-            $ setRequestBodyLBS (L.pack ("ask(" ++ "append(Xs, Ys, [a,b,c])" ++ ",[])."))
+            $ setRequestBodyLBS (L.pack ("ask(" ++ query ++ ",[])."))
             $ request'
 
     response <- httpLBS request
-    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
-    print $ getResponseHeader "Content-Type" response
-    L.putStrLn $ getResponseBody response
     return response
 
-pengineNext :: String -> IO (Response ByteString)
-pengineNext pengine_id = do
-    request' <- parseRequest "POST http://localhost:4242"
-    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
-    let request 
+pengineNext :: ServerConfiguration -> IO (Response ByteString)
+pengineNext serverConf = do
+    request' <- parseRequest $ "POST " ++ (serverBase serverConf)
+    let requestPath = "/pengine/send?format=json&id=" ++ (fromJust $ pengineId serverConf)
+    let request
             = setRequestPath (C.pack requestPath)
             {-$ setRequestQueryString []-}
             $ setRequestSecure False
@@ -96,20 +86,16 @@ pengineNext pengine_id = do
             $ setRequestHeader "User-Agent" ["HaskellPengine"]
             $ setRequestHeader "Accept" ["application/json"]
             $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
-            $ setRequestBodyLBS (L.pack ("next."))
-            $ request'
+            $ setRequestBodyLBS (L.pack "next.") request'
 
     response <- httpLBS request
-    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
-    print $ getResponseHeader "Content-Type" response
-    L.putStrLn $ getResponseBody response
     return response
 
-pengineStop :: String -> IO (Response ByteString)
-pengineStop pengine_id = do
-    request' <- parseRequest "POST http://localhost:4242"
-    let requestPath = "/pengine/send?format=json&id=" ++ pengine_id
-    let request 
+pengineStop :: ServerConfiguration -> IO (Response ByteString)
+pengineStop serverConf = do
+    request' <- parseRequest $ "POST " ++ (serverBase serverConf)
+    let requestPath = "/pengine/send?format=json&id=" ++ (fromJust $ pengineId serverConf)
+    let request
             = setRequestPath (C.pack requestPath)
             {-$ setRequestQueryString []-}
             $ setRequestSecure False
@@ -117,26 +103,20 @@ pengineStop pengine_id = do
             $ setRequestHeader "User-Agent" ["HaskellPengine"]
             $ setRequestHeader "Accept" ["application/json"]
             $ setRequestHeader "Accept-Language" ["en-us,en;q=0.5"]
-            $ setRequestBodyLBS (L.pack ("stop."))
-            $ request'
+            $ setRequestBodyLBS (L.pack "stop.") request'
 
     response <- httpLBS request
-    Prelude.putStrLn $ "The Status code was: " ++ show (getResponseStatusCode response)
-    print $ getResponseHeader "Content-Type" response
-    L.putStrLn $ getResponseBody response
     return response
 
 test = do
-    pid <- lib
-    pengineAsk pid 
-    pengineNext pid
-    pengineNext pid
-    pengineNext pid
-    pengineNext pid
-    pengineStop pid
+    serverConfig <- pengineConnect "http://localhost:4242/"
+    let query = "member(X, [1,2,3])"
+    bs <- pengineAsk serverConfig query
+    pengineNext serverConfig
+    pengineNext serverConfig
+    pengineStop serverConfig
 
-data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString,
-                                            request :: Request} deriving (Show)
+data PengineConnection = PengineConnection {pengineresponse :: Response L.ByteString, request :: Request} deriving (Show)
 
 
 buildURL :: String -> PengineAction -> String
