@@ -1,4 +1,4 @@
-Haskell Pengines v.0.0.1
+Haskell Pengines v.0.0.2
 # This is the basic Pengines interface for Haskell.
 It aims to provide a simple API for Haskell integration with SWI-Prolog's Pengines.
 
@@ -8,3 +8,5 @@ We are currently working on...
 - Get a prototype working. COMPLETED
 - Model the datatypes.  Ensure relevant datatypes are serializable.
 - Necessary datatypes include Prolog Data Types, Header Data (Sent), Header Data (Received), Query Data, Server Data, along with default values for each. 
+- Add tests, and error handling.
+- Finish re-write of prototype code.
