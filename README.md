@@ -42,5 +42,5 @@ userManualQuery = do
     pengineHandle <- pengineConnect server
     pengineQuery1 <- pengineQuery pengineHandle query
     pengineQuery2 <- pengineNext pengineHandle
-    pengineClose pengineHandle
+    pengineDestroy pengineHandle
 ```

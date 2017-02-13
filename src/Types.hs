@@ -7,6 +7,14 @@ import              Data.Aeson.Types
 import              Data.Scientific                     (Scientific)
 import              Data.Maybe                          (fromJust)
 
+{- There are three parts to this file.
+ - 1: HeaderBase data, and a headerDefaultBase to start with.
+ - 2: Server Configuration data, and functions manipulating it.
+ - 3: Pengine action type
+ - 4: Helper functions for what we need for the requests.
+ - -}
+
+{- Begin Header Information -}
 data HeaderBase = HeaderBase{ userAgent :: String
                             , contentType :: String
                             , accept :: String
@@ -18,29 +26,37 @@ headerDefault = HeaderBase{     userAgent      = "HaskellPengine"
                               , acceptLanguage = "en-us,en;q=0.5"
                               , contentType    = "application/x-prolog"}
 
-data URI = URI {
-    serverBase :: String,
-    pengineId :: Maybe String,
-    action :: PengineAction} deriving (Show)
 
-{-makeURI :: URI -> String-}
-{-makeURI URI = do-}
-    {-base <- serverBase URI-}
-    {-pid <- pengineID-}
-
-makePath :: PengineAction -> URI -> String
-makePath act uri =
-    case act of
-        Create  -> "/pengine/create"
-        _       -> "/pengine/send/?format=json&id=" ++ justpenid
-    where justpenid = fromJust $ pengineId uri
-
-data PengineAction = Create | Query String | Destroy | Next | Stop deriving (Show)
-
-{-Refactor this to headers file?-}
+{- Used in pengineCreate function -}
 createHeader :: HeaderBase -> HeaderBase
 createHeader h = h {accept = "application/json"}
 
+{- End header information. -}
+
+{- Begin server configuration information. -}
+data ServerConfiguration = ServerConfiguration {
+    serverBase :: String,
+    pengineId :: Maybe String
+    } deriving (Show)
+
+setBasicServerPath :: String -> ServerConfiguration
+setBasicServerPath url = ServerConfiguration{serverBase=url, pengineId=Nothing}
+
+{- Helper function to create a path from an action and serverConfiguration. -}
+makePath :: PengineAction -> ServerConfiguration -> String
+makePath act server =
+    case act of
+        Create  -> "/pengine/create"
+        _       -> "/pengine/send/?format=json&id=" ++ justpenid
+    where justpenid = fromJust $ pengineId server
+
+{- End server configuration -}
+
+{- PengineActions -}
+data PengineAction = Create | Query String | Destroy | Next | Stop deriving (Show)
+{-End PengineActions.-}
+
+{- TODO: Remove Prolog types to another file. -}
 {- Tabularize this -- commands? -}
 data PrologTerms = PAtom String | PNumber Scientific | PList [PrologTerms] | PTrue Bool | PFalse Bool | PNull | PNameValueList (HM.Map String PrologTerms) | PTerm (String, [PrologTerms])
 
